@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fader de Audio Vertical</title>
+    <link rel="stylesheet" href="css/style.css"> <!-- Enlace a la hoja de estilos CSS -->
+</head>
+<body>
+    <div class="fader-frame">
+        <!-- Etiqueta editable para el nombre del canal -->
+        <div class="channel-label editable" contenteditable="true">Canal 1</div>
+
+        <!-- Contenedor del slider -->
+        <div class="slider-container">
+            <!-- Marcas de nivel de dB en el slider -->
+            <div class="slider-marks">
+                <!-- Cada marca de dB con su respectivo valor y posición -->
+                <div class="mark" style="bottom: 8%;">∞</div>
+                <div class="mark" style="bottom: 17.50%;">-60</div>
+                <div class="mark" style="bottom: 29.00%;">-50</div>
+                <div class="mark" style="bottom: 40.00%;">-40</div>
+                <div class="mark" style="bottom: 51%;">-30</div>
+                <div class="mark" style="bottom: 62.00%;">-20</div>
+                <div class="mark" style="bottom: 67.30%;">-15</div>
+                <div class="mark" style="bottom: 73.00%;">-10</div>
+                <div class="mark" style="bottom: 78.54%;">-5</div>
+                <div class="mark" style="bottom: 84.54%;">0</div>
+                <div class="mark" style="bottom: 91%;">+6</div>
+                <div class="mark" style="bottom: 97.50%;">+12</div>
+            </div>
+
+            <!-- Slider para ajustar el nivel de dB -->
+            <div class="slider" id="audio-slider">
+                <!-- Control deslizante (thumb) dentro del slider -->
+                <div class="slider-thumb" id="slider-thumb"></div>
+            </div>
+        </div>
+
+        <!-- Display que muestra el valor de dB actual -->
+        <div class="db-display" id="db-display">
+            <span id="db-value" contenteditable="true">0</span> dB
+        </div>
+        
+        <script>
+            // Declaración de variables para interactuar con los elementos del DOM
+            const slider = document.getElementById("audio-slider");
+            const sliderThumb = document.getElementById("slider-thumb");
+            const dbValueDisplay = document.getElementById("db-value");
+            const channelLabel = document.querySelector('.channel-label');
+            let isDragging = false; // Estado para controlar el arrastre del thumb
+
+            // Función para calcular el valor de dB basado en la posición del thumb
+            function calculateDb(y, height) {
+                // Cálculos para determinar el valor de dB
+                const thumbCenter = y + sliderThumb.offsetHeight / 2;
+                const scaleBottom = height - sliderThumb.offsetHeight / 2;
+                const scaleTop = sliderThumb.offsetHeight / 2;
+                const scaleHeight = scaleBottom - scaleTop;
+                const dbValue = 12 - ((thumbCenter - scaleTop) / scaleHeight) * 72;
+                return dbValue;
+            }
+
+            // Función para ajustar la posición del thumb basado en un valor de dB
+            function setThumbPositionFromDb(dbValue) {
+                // Cálculos para determinar la posición del thumb
+                const height = slider.clientHeight;
+                const scaleHeight = height - sliderThumb.offsetHeight;
+                const position = ((dbValue - 12) / -72) * scaleHeight + sliderThumb.offsetHeight / 2;
+                sliderThumb.style.top = position - sliderThumb.offsetHeight / 2 + "px";
+                updateDbDisplayColor(dbValue);
+            }
+
+            // Función para actualizar el color del display de dB
+            function updateDbDisplayColor(dbValue) {
+                // Cambia el color del texto y añade efecto de brillo según el valor de dB
+                if (dbValue < 0) {
+                    dbValueDisplay.style.color = "#FF2D00"; // Rojo más fluorescente
+                    dbValueDisplay.style.textShadow = "0 0 10px #FF2D00"; // Efecto de brillo
+                } else {
+                    dbValueDisplay.style.color = "#00BFFF"; // Azul más fluorescente
+                    dbValueDisplay.style.textShadow = "0 0 10px #00BFFF"; // Efecto de brillo
+                }
+            }
+
+            // Evento para iniciar el arrastre del thumb
+            sliderThumb.addEventListener("mousedown", (e) => {
+                e.preventDefault();
+                isDragging = true;
+            });
+
+            // Evento para mover el thumb mientras se arrastra
+            document.addEventListener("mousemove", (e) => {
+                if (isDragging) {
+                    const rect = slider.getBoundingClientRect();
+                    let y = e.clientY - rect.top;
+                    // Restricciones para mantener el thumb dentro del slider
+                    if (y < sliderThumb.offsetHeight / 2) {
+                        y = sliderThumb.offsetHeight / 2;
+                    } else if (y > rect.height - sliderThumb.offsetHeight / 2) {
+                        y = rect.height - sliderThumb.offsetHeight / 2;
+                    }
+                    sliderThumb.style.top = y - sliderThumb.offsetHeight / 2 + "px";
+                    const dBValue = calculateDb(y - sliderThumb.offsetHeight / 2, rect.height);
+                    dbValueDisplay.textContent = dBValue.toFixed(1);
+                    updateDbDisplayColor(dBValue);
+                }
+            });
+
+            // Evento para finalizar el arrastre del thumb
+            document.addEventListener("mouseup", () => {
+                isDragging = false;
+            });
+
+            // Evento para manejar la entrada de texto en el display de dB
+            dbValueDisplay.addEventListener("input", handleDbInput);
+
+            // Evento para ajustar el valor de dB con Enter y validar el rango
+            dbValueDisplay.addEventListener("keypress", (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    let dbValue = parseFloat(e.target.innerText);
+                    if (!isNaN(dbValue) && dbValue >= -60 && dbValue <= 12) {
+                        setThumbPositionFromDb(dbValue);
+                    } else {
+                        alert("El valor debe estar entre -60 y +12 dB.");
+                        e.target.innerText = '0'; // Restablece a un valor seguro
+                        setThumbPositionFromDb(0);
+                    }
+                }
+            });
+
+            // Evento para manejar la entrada de texto en la etiqueta del canal
+            channelLabel.addEventListener("input", (e) => {
+                const maxLength = 14; // Máximo número total de caracteres permitidos
+                const visibleLength = 6; // Número de caracteres visibles antes de las elipses
+                let text = e.target.innerText;
+                // Elimina las elipses si están presentes para manejar correctamente la longitud del texto
+                if (text.endsWith('..')) {
+                    text = text.substring(0, text.length - 2);
+                }
+                // Recorta el texto si excede el maxLength
+                if (text.length > maxLength) {
+                    text = text.substring(0, maxLength);
+                }
+                // Añade elipses si el contenido excede el visibleLength
+                if (text.length > visibleLength) {
+                    text = text.substring(0, visibleLength) + '..';
+                }
+                e.target.innerText = text;
+                setCaretToEnd(e.target);
+            });
+
+            // Evento para manejar la tecla Enter y Backspace en la etiqueta del canal
+            channelLabel.addEventListener("keydown", (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                } else if (e.key === 'Backspace' && e.target.innerText.endsWith('..')) {
+                    // Manejar el borrado cuando el texto termina en elipses
+                    e.preventDefault();
+                    let text = e.target.innerText.substring(0, e.target.innerText.length - 3);
+                    e.target.innerText = text;
+                    setCaretToEnd(e.target);
+                }
+            });
+
+            // Inicializar la posición del fader
+            setThumbPositionFromDb(parseFloat(dbValueDisplay.textContent));
+
+            // Función para manejar la entrada de texto en el display de dB
+            function handleDbInput(e) {
+                let dbValueText = e.target.innerText.replace(/[^0-9.-]/g, '');
+                if (dbValueText.includes('-')) {
+                    dbValueText = '-' + dbValueText.replace(/-/g, '');
+                }
+                if (dbValueText.match(/^-0+$/)) {
+                    dbValueText = '-0'; // Limita múltiples ceros después del signo '-' a uno solo
+                } else if (dbValueText.match(/^0+/)) {
+                    dbValueText = '0'; // Limita múltiples ceros al principio a uno solo
+                }
+                let dbValue = parseFloat(dbValueText);
+                if (dbValueText === '-' || (!isNaN(dbValue) && dbValue >= -60 && dbValue <= 12)) {
+                    e.target.innerText = dbValueText;
+                    setCaretToEnd(e.target);
+                } else {
+                    e.target.innerText = dbValueText.substring(0, dbValueText.length - 1); // Elimina el último carácter
+                    setCaretToEnd(e.target);
+                }
+            }
+
+            // Función para mover el cursor al final del texto
+            function setCaretToEnd(el) {
+                const range = document.createRange();
+                const sel = window.getSelection();
+                range.selectNodeContents(el);
+                range.collapse(false);
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }
+        </script>                 
+    </div>
+</body>
+</html>
+
+<!-- Créditos -->
+<!-- Desarrollado por Codercast para reggaetonscript.com 2024 --> 
